@@ -75,6 +75,40 @@ def complete(request, backend):
     return complete_process(request, backend)
 
 
+def complete_process(request, backend):
+    """Authentication complete process"""
+    user = auth_complete(request, backend)
+
+    if isinstance(user, HttpResponse):
+        return user
+    
+    if user and getattr(user, 'is_active', True):
+        login(request, user)
+        # user.social_user is the used UserSocialAuth instance defined
+        # in authenticate process
+        social_user = user.social_user
+
+        if SESSION_EXPIRATION :
+            # Set session expiration date if present and not disabled by
+            # setting. Use last social-auth instance for current provider,
+            # users can associate several accounts with a same provider.
+            if social_user.expiration_delta():
+                request.session.set_expiry(social_user.expiration_delta())
+
+        # store last login backend name in session
+        request.session[SOCIAL_AUTH_LAST_LOGIN] = social_user.provider
+
+        # Remove possible redirect URL from session, if this is a new account,
+        # send him to the new-users-page if defined.
+        url = NEW_USER_REDIRECT if NEW_USER_REDIRECT and \
+                                   getattr(user, 'is_new', False) else \
+              request.session.pop(REDIRECT_FIELD_NAME, '') or \
+              DEFAULT_REDIRECT
+    else:
+        url = LOGIN_ERROR_URL
+    return HttpResponseRedirect(url)
+
+
 @login_required
 @dsa_view(ASSOCIATE_URL_NAME)
 def associate(request, backend):
@@ -162,7 +196,7 @@ def auth_complete(request, backend, user=None):
         user = None
 
     try:
-        user = backend.auth_complete(user=user)
+        user = backend.auth_complete(user=user, request=request)
     except ValueError, e:  # some Authentication error ocurred
         error_key = getattr(settings, 'SOCIAL_AUTH_ERROR_KEY', None)
         if error_key:  # store error in session

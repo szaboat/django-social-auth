@@ -86,12 +86,12 @@ class SocialAuthBackend(ModelBackend):
     a authentication provider response"""
     name = ''  # provider name, it's stored in database
 
-    def get_or_create_user(self, details, response):
+    def get_or_create_user(self, **kwargs):
+        details = kwargs['details']
         user = None
 
         if create_user.receivers:
             sender = self.__class__
-            kwargs = {'response': response, 'details': details}
             for receiver in create_user._live_receivers(_make_id(sender)):
                 user = receiver(signal=create_user, sender=sender, **kwargs)
                 if user is not None:
@@ -133,6 +133,7 @@ class SocialAuthBackend(ModelBackend):
 
         response = kwargs.get('response')
         details = self.get_user_details(response)
+        kwargs['details'] = details
         uid = self.get_user_id(details, response)
         is_new = False
         user = kwargs.get('user')
@@ -141,9 +142,9 @@ class SocialAuthBackend(ModelBackend):
             social_user = self.get_social_auth_user(uid)
         except UserSocialAuth.DoesNotExist:
             if user is None:  # new user
-                user = self.get_or_create_user(details, response)
-            if user is None:
-                return None
+                user = self.get_or_create_user(**kwargs)
+            if not isinstance(user, User):
+                return user
             social_user = self.associate_auth(user, uid, response, details)
         else:
             # This account was registered to another user, so we raise an
