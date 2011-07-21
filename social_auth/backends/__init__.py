@@ -9,6 +9,7 @@ Also the modules *must* define a BACKENDS dictionary with the backend name
 (which is used for URLs matching) and Auth class, otherwise it won't be
 enabled.
 """
+from django.dispatch.dispatcher import _make_id
 from os import walk
 from os.path import basename
 from uuid import uuid4
@@ -32,7 +33,7 @@ from django.utils.importlib import import_module
 
 from social_auth.models import UserSocialAuth
 from social_auth.store import DjangoOpenIDStore
-from social_auth.signals import pre_update, socialauth_registered
+from social_auth.signals import pre_update, socialauth_registered, create_user
 
 
 # OpenID configuration
@@ -85,6 +86,37 @@ class SocialAuthBackend(ModelBackend):
     a authentication provider response"""
     name = ''  # provider name, it's stored in database
 
+    def get_or_create_user(self, details, response):
+        user = None
+
+        if create_user.receivers:
+            sender = self.__class__
+            kwargs = {'response': response, 'details': details}
+            for receiver in create_user._live_receivers(_make_id(sender)):
+                user = receiver(signal=create_user, sender=sender, **kwargs)
+                if user is not None:
+                    return user
+
+        if not CREATE_USERS:
+            return None
+        email = details.get('email')
+        if email and ASSOCIATE_BY_MAIL:
+            # try to associate accounts registered with the same email
+            # address, only if it's a single object. ValueError is
+            # raised if multiple objects are returned
+            try:
+                user = User.objects.get(email=email)
+            except MultipleObjectsReturned:
+                raise ValueError('Not unique email address supplied')
+            except User.DoesNotExist:
+                user = None
+        if not user:
+            username = self.username(details)
+            user = User.objects.create_user(username=username,
+                                            email=email)
+            user.is_new = True
+        return user
+
     def authenticate(self, *args, **kwargs):
         """Authenticate user using social credentials
 
@@ -109,25 +141,9 @@ class SocialAuthBackend(ModelBackend):
             social_user = self.get_social_auth_user(uid)
         except UserSocialAuth.DoesNotExist:
             if user is None:  # new user
-                if not CREATE_USERS:
-                    return None
-
-                email = details.get('email')
-                if email and ASSOCIATE_BY_MAIL:
-                    # try to associate accounts registered with the same email
-                    # address, only if it's a single object. ValueError is
-                    # raised if multiple objects are returned
-                    try:
-                        user = User.objects.get(email=email)
-                    except MultipleObjectsReturned:
-                        raise ValueError('Not unique email address supplied')
-                    except User.DoesNotExist:
-                        user = None
-                if not user:
-                    username = self.username(details)
-                    user = User.objects.create_user(username=username,
-                                                    email=email)
-                    is_new = True
+                user = self.get_or_create_user(details, response)
+            if user is None:
+                return None
             social_user = self.associate_auth(user, uid, response, details)
         else:
             # This account was registered to another user, so we raise an
@@ -138,9 +154,6 @@ class SocialAuthBackend(ModelBackend):
             if user and user != social_user.user:
                 raise ValueError('Account already in use.', social_user)
             user = social_user.user
-
-        # Flag user "new" status
-        setattr(user, 'is_new', is_new)
 
         # Update extra_data storage, unless disabled by setting
         if LOAD_EXTRA_DATA:
