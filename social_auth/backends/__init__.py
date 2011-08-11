@@ -95,10 +95,9 @@ class SocialAuthBackend(ModelBackend):
             for receiver in create_user._live_receivers(_make_id(sender)):
                 user = receiver(signal=create_user, sender=sender, **kwargs)
                 if user is not None:
+                    user.is_new = True
                     return user
 
-        if not CREATE_USERS:
-            return None
         email = details.get('email')
         if email and ASSOCIATE_BY_MAIL:
             # try to associate accounts registered with the same email
@@ -110,7 +109,7 @@ class SocialAuthBackend(ModelBackend):
                 raise ValueError('Not unique email address supplied')
             except User.DoesNotExist:
                 user = None
-        if not user:
+        if not user and CREATE_USERS:
             username = self.username(details)
             user = User.objects.create_user(username=username,
                                             email=email)
