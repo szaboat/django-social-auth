@@ -13,8 +13,10 @@ field, check OAuthBackend class for details on how to extend it.
 """
 import cgi
 import urllib
+from random import random
 
 from django.conf import settings
+from django.contrib.auth.models import get_hexdigest
 from django.utils import simplejson
 from django.contrib.auth import authenticate
 
@@ -50,8 +52,12 @@ class FacebookAuth(BaseOAuth):
 
     def auth_url(self):
         """Returns redirect url"""
+        state = get_hexdigest('md5', str(random()), str(random()))[:6]
+        self.request.session['state'] = state
         args = {'client_id': settings.FACEBOOK_APP_ID,
-                'redirect_uri': self.redirect_uri}
+                'redirect_uri': self.redirect_uri,
+                'state': state,
+                }
         if hasattr(settings, 'FACEBOOK_EXTENDED_PERMISSIONS'):
             args['scope'] = ','.join(settings.FACEBOOK_EXTENDED_PERMISSIONS)
         return FACEBOOK_AUTHORIZATION_URL + '?' + urllib.urlencode(args)
@@ -59,6 +65,10 @@ class FacebookAuth(BaseOAuth):
     def auth_complete(self, *args, **kwargs):
         """Returns user, might be logged in"""
         if 'code' in self.data:
+            if self.data['state'] != self.request.session['state']:
+                error = "invalid or missing state"
+                raise ValueError('Authentication error: %s' % error)
+
             url = FACEBOOK_ACCESS_TOKEN_URL + '?' + \
                   urllib.urlencode({'client_id': settings.FACEBOOK_APP_ID,
                                 'redirect_uri': self.redirect_uri,
