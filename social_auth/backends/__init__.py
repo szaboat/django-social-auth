@@ -110,7 +110,7 @@ class SocialAuthBackend(ModelBackend):
                     user.is_new = True
                     break
 
-        if user in None and CREATE_USERS:
+        if user is None and CREATE_USERS:
             username = self.username(details)
             user = User.objects.create_user(username=username,
                                             email=email)
