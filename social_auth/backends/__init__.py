@@ -90,14 +90,6 @@ class SocialAuthBackend(ModelBackend):
         details = kwargs['details']
         user = None
 
-        if create_user.receivers:
-            sender = self.__class__
-            for receiver in create_user._live_receivers(_make_id(sender)):
-                user = receiver(signal=create_user, sender=sender, **kwargs)
-                if user is not None:
-                    user.is_new = True
-                    return user
-
         email = details.get('email')
         if email and ASSOCIATE_BY_MAIL:
             # try to associate accounts registered with the same email
@@ -108,8 +100,17 @@ class SocialAuthBackend(ModelBackend):
             except MultipleObjectsReturned:
                 raise ValueError('Not unique email address supplied')
             except User.DoesNotExist:
-                user = None
-        if not user and CREATE_USERS:
+                pass
+
+        if user is None and create_user.receivers:
+            sender = self.__class__
+            for receiver in create_user._live_receivers(_make_id(sender)):
+                user = receiver(signal=create_user, sender=sender, **kwargs)
+                if user is not None:
+                    user.is_new = True
+                    break
+
+        if user in None and CREATE_USERS:
             username = self.username(details)
             user = User.objects.create_user(username=username,
                                             email=email)
@@ -142,8 +143,8 @@ class SocialAuthBackend(ModelBackend):
         except UserSocialAuth.DoesNotExist:
             if user is None:  # new user
                 user = self.get_or_create_user(**kwargs)
-            if not isinstance(user, User):
-                return user
+            if user is None:
+                return None
             social_user = self.associate_auth(user, uid, response, details)
         else:
             # This account was registered to another user, so we raise an
