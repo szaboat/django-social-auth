@@ -18,3 +18,5 @@ from django.dispatch import Signal
 pre_update = Signal(providing_args=['user', 'response', 'details'])
 
 socialauth_registered = Signal(providing_args=['user', 'response', 'details'])
+
+create_user = Signal(providing_args=['response', 'details'])
