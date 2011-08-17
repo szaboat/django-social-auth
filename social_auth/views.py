@@ -77,11 +77,11 @@ def complete(request, backend):
 
 def complete_process(request, backend):
     """Authentication complete process"""
-    user = auth_complete(request, backend)
+    try:
+        user = auth_complete(request, backend)
+    except HttpResponse as response:
+        return response
 
-    if isinstance(user, HttpResponse):
-        return user
-    
     if user and getattr(user, 'is_active', True):
         login(request, user)
         # user.social_user is the used UserSocialAuth instance defined
