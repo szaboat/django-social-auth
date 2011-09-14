@@ -159,7 +159,7 @@ def auth_process(request, backend):
                             content_type='text/html;charset=UTF-8')
 
 
-class HttpResponseException(Exception, HttpResponse):
+class HttpResponseException(Exception):
     def __init__(self, response):
         self.response = response
 
