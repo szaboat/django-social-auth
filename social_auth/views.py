@@ -125,9 +125,18 @@ def auth_process(request, backend):
                             content_type='text/html;charset=UTF-8')
 
 
+class HttpResponseException(Exception, HttpResponse):
+    def __init__(self, response):
+        self.response = response
+
+
 def complete_process(request, backend):
     """Authentication complete process"""
-    user = auth_complete(request, backend)
+
+    try:
+        user = auth_complete(request, backend)
+    except HttpResponseException, e :
+        return e.response
 
     if user and getattr(user, 'is_active', True):
         login(request, user)
