@@ -66,9 +66,9 @@ class FacebookAuth(BaseOAuth):
     def auth_complete(self, *args, **kwargs):
         """Returns user, might be logged in"""
         if 'code' in self.data:
-            if self.data['state'] != self.request.session['state']:
-                error = "invalid or missing state"
-                raise ValueError('Authentication error: %s' % error)
+#            if self.data['state'] != self.request.session['state']:
+#                error = "invalid or missing state"
+#                raise ValueError('Authentication error: %s' % error)
 
             url = FACEBOOK_ACCESS_TOKEN_URL + '?' + \
                   urlencode({'client_id': settings.FACEBOOK_APP_ID,
