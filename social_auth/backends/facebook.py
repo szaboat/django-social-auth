@@ -75,7 +75,7 @@ class FacebookAuth(BaseOAuth):
                                 'redirect_uri': self.redirect_uri,
                                 'client_secret': settings.FACEBOOK_API_SECRET,
                                 'code': self.data['code']})
-            response = cgi.parse_qs(urlopen(url).read())
+            response = cgi.parse_qs(urlopen(url,timeout=30).read())
             access_token = response['access_token'][0]
             data = self.user_data(access_token)
             if data is not None:
